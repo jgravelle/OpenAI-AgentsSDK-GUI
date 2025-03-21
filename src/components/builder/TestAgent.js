@@ -18,8 +18,11 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import ReplayIcon from '@mui/icons-material/Replay';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import ReactMarkdown from 'react-markdown';
+import { useTheme } from '@mui/material/styles';
 
 function TestAgent({ agentData }) {
+  const theme = useTheme();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +32,43 @@ function TestAgent({ agentData }) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Create Markdown styling based on current theme
+  const markdownStyles = {
+    '& a': { color: 'primary.main' },
+    '& img': { maxWidth: '100%' },
+    '& pre': { 
+      bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100', 
+      p: 1, 
+      borderRadius: 1,
+      overflowX: 'auto',
+      color: theme.palette.mode === 'dark' ? 'grey.300' : 'inherit',
+    },
+    '& code': { 
+      bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
+      color: theme.palette.mode === 'dark' ? 'grey.300' : 'inherit',
+      px: 0.5,
+      borderRadius: 0.5,
+      fontFamily: '"Roboto Mono", monospace',
+    },
+    '& table': {
+      borderCollapse: 'collapse',
+      width: '100%',
+    },
+    '& th, & td': {
+      border: '1px solid',
+      borderColor: 'divider',
+      p: 1,
+    },
+    '& blockquote': {
+      borderLeft: '4px solid',
+      borderColor: theme.palette.mode === 'dark' ? 'grey.700' : 'grey.300',
+      pl: 2,
+      ml: 0,
+      my: 1,
+      color: 'text.secondary'
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
@@ -122,7 +162,8 @@ function TestAgent({ agentData }) {
             id: Date.now() + Math.random(),
             role: 'tool',
             tool: item.raw_item.name,
-            content: item.output || 'Tool execution completed'
+            content: item.output || 'Tool execution completed',
+            isMarkdown: true
           };
           
           setMessages(prev => [...prev, toolCallMessage, toolResultMessage]);
@@ -155,7 +196,8 @@ function TestAgent({ agentData }) {
     const assistantMessage = {
       id: Date.now() + Math.random(),
       role: 'assistant',
-      content: content
+      content: content,
+      isMarkdown: true // Add flag to render as Markdown
     };
     
     setMessages(prev => [...prev, assistantMessage]);
@@ -166,8 +208,31 @@ function TestAgent({ agentData }) {
     setMessages([]);
   };
 
+  // Function to check if the content looks like Markdown
+  const looksLikeMarkdown = (content) => {
+    // Check for common markdown patterns
+    if (!content) return false;
+    
+    // Look for headers, lists, links, code blocks, etc.
+    const markdownPatterns = [
+      /^#+ /m,               // Headers
+      /\*\*.+\*\*/,          // Bold
+      /\*.+\*/,              // Italic
+      /\[.+\]\(.+\)/,        // Links
+      /^```[\s\S]*```/m,     // Code blocks
+      /^- /m,                // Unordered lists
+      /^[0-9]+\. /m,         // Ordered lists
+      /^> /m,                // Blockquotes
+      /!\[.+\]\(.+\)/        // Images
+    ];
+    
+    return markdownPatterns.some(pattern => pattern.test(content));
+  };
+
   // Render messages with appropriate styling based on role
   const renderMessage = (message) => {
+    const shouldRenderMarkdown = message.isMarkdown !== false && looksLikeMarkdown(message.content);
+    
     switch (message.role) {
       case 'user':
         return (
@@ -227,7 +292,15 @@ function TestAgent({ agentData }) {
                 maxWidth: '80%'
               }}
             >
-              <Typography variant="body1">{message.content}</Typography>
+              {shouldRenderMarkdown ? (
+                <Box className="markdown-content" sx={markdownStyles}>
+                  <ReactMarkdown>
+                    {message.content}
+                  </ReactMarkdown>
+                </Box>
+              ) : (
+                <Typography variant="body1">{message.content}</Typography>
+              )}
             </Paper>
           </ListItem>
         );
@@ -251,7 +324,15 @@ function TestAgent({ agentData }) {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Tool result: {message.tool}
               </Typography>
-              <Typography variant="body1">{message.content}</Typography>
+              {shouldRenderMarkdown ? (
+                <Box className="markdown-content" sx={markdownStyles}>
+                  <ReactMarkdown>
+                    {message.content}
+                  </ReactMarkdown>
+                </Box>
+              ) : (
+                <Typography variant="body1">{message.content}</Typography>
+              )}
             </Paper>
           </ListItem>
         );
@@ -275,7 +356,18 @@ function TestAgent({ agentData }) {
               <Typography variant="body2" color="secondary" fontWeight="bold" gutterBottom>
                 {message.name}
               </Typography>
-              <Typography variant="body1">{message.content}</Typography>
+              {shouldRenderMarkdown ? (
+                <Box className="markdown-content" sx={{
+                  ...markdownStyles,
+                  '& a': { color: 'secondary.main' },
+                }}>
+                  <ReactMarkdown>
+                    {message.content}
+                  </ReactMarkdown>
+                </Box>
+              ) : (
+                <Typography variant="body1">{message.content}</Typography>
+              )}
             </Paper>
           </ListItem>
         );
